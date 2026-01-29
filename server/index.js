@@ -20,6 +20,13 @@ io.on('connection', (socket) => {
     socket.on('draw_line',(data) => {
         socket.broadcast.emit('draw_line',data);
     });
+    socket.on('cursor_move',({x,y}) => {
+        socket.broadcast.emit('cursor_update', {
+            id : socket.id,
+            x,
+            y
+        });
+    });
     socket.on('disconnect', (socket) => {
         console.log(`User disconnected: ${socket.id}`);
     });
