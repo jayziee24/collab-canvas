@@ -1,6 +1,6 @@
 import { useEffect, useRef } from "react";
 
-const Whiteboard = () => {
+const Whiteboard = ({ socket }) => {
   const canvasRef = useRef(null);
   const isDrawing = useRef(false);
   const lastPos = useRef({ x: 0, y: 0 });
@@ -28,26 +28,38 @@ const Whiteboard = () => {
     setCanvasSize();
     window.addEventListener("resize", setCanvasSize);
 
+    socket.on("draw_line", (data) => {
+      if (!data.points || data.points.length === 0) return;
+      const ctx = canvas.getContext("2d");
+      ctx.beginPath();
+      let p1 = data.points[0];
+      ctx.moveTo(p1.x, p1.y);
+      data.points.forEach((point) => {
+        ctx.lineTo(point.x, point.y);
+      });
+      ctx.stroke();
+    });
     const interval = setInterval(() => {
-      if(strokeBuffer.current.length > 0){
-        const packet = {
-          type: "draw_line",
+      if (strokeBuffer.current.length > 0) {
+        socket.emit("draw_line", {
           points: [...strokeBuffer.current],
           color: "black",
-          width: 5
+        });
+        if (isDrawing.current) {
+          const lastPoint =
+            strokeBuffer.current[strokeBuffer.current.length - 1];
+          strokeBuffer.current = [lastPoint];
+        } else {
+          strokeBuffer.current = [];
         }
-        console.log("Packet Ready:", packet);
-
-        strokeBuffer.current = [];
       }
-    },50)
+    }, 50);
 
     return () => {
       window.removeEventListener("resize", setCanvasSize);
       clearInterval(interval);
     };
-
-  }, []);
+  }, [socket]);
 
   const getMousePos = (e) => {
     const canvas = canvasRef.current;
@@ -62,6 +74,7 @@ const Whiteboard = () => {
     isDrawing.current = true;
     const { x, y } = getMousePos(e);
     lastPos.current = { x, y };
+    strokeBuffer.current = [{ x, y }];
   };
 
   const draw = (e) => {
@@ -75,12 +88,13 @@ const Whiteboard = () => {
     ctx.lineTo(x, y);
     ctx.stroke();
 
-    strokeBuffer.current.push({x, y});
+    strokeBuffer.current.push({ x, y });
     lastPos.current = { x, y };
   };
 
   const stopDrawing = () => {
     isDrawing.current = false;
+    strokeBuffer.current = [];
   };
 
   return (
@@ -90,11 +104,7 @@ const Whiteboard = () => {
       onMouseMove={draw}
       onMouseUp={stopDrawing}
       onMouseLeave={stopDrawing}
-      style={{
-        border: "1px solid #ccc",
-        cursor: "crosshair",
-        touchAction: "none",
-      }}
+      className="cursor-crosshair touch-none"
     />
   );
 };

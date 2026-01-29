@@ -13,11 +13,11 @@ function App() {
         flexDirection: "column",
       }}
     >
-      <div style={{ padding: "10px", background: "#f0f0f0" }}>
+      <div className="p-4 bg-gray-100 border-b border-gray-300">
         <h1>Collaborative Canvas</h1>
       </div>
       <div style={{ flex: 1, overflow: "hidden" }}>
-        <Whiteboard />
+        <Whiteboard socket={socket} />
       </div>
     </div>
   );

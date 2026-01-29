@@ -1,6 +1,11 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* Keep our canvas reset */
 body {
   margin: 0;
   padding: 0;
-  box-sizing: border-box;
-  overflow: hidden; /* Prevent scrollbars */
+  overflow: hidden;
+  touch-action: none; /* Critical for drawing on touch screens */
 }

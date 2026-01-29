@@ -16,10 +16,14 @@ const io = new Server(server, {
 
 io.on('connection', (socket) => {
     console.log(`User connected: ${socket.id}`);
+
+    socket.on('draw_line',(data) => {
+        socket.broadcast.emit('draw_line',data);
+    });
     socket.on('disconnect', (socket) => {
         console.log(`User disconnected: ${socket.id}`);
-    })
-})
+    });
+});
 
 const PORT = 3001
 server.listen(PORT, () => {
