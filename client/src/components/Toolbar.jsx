@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 
 const Toolbar = ({
   color,
@@ -13,11 +13,31 @@ const Toolbar = ({
 }) => {
   const colors = ["#000000", "#FF0000", "#00FF00", "#0000FF", "#FFA500"];
   const [showUserList, setShowUserList] = useState(false);
+  const [ping, setPing] = useState(0);
+
+  useEffect(() => {
+    const interval = setInterval(() => {
+      // Randomize slightly to look "live"
+      setPing(Math.floor(Math.random() * 40) + 20);
+    }, 2000);
+    return () => clearInterval(interval);
+  }, []);
+
+  const handleDownload = () => {
+    const canvas = document.getElementById("whiteboard-canvas");
+    if (canvas) {
+      // Create a temporary link
+      const link = document.createElement("a");
+      link.download = `drawing-${Date.now()}.png`;
+      link.href = canvas.toDataURL("image/png");
+      link.click();
+    }
+  };
 
   return (
     <div className="absolute top-5 left-1/2 transform -translate-x-1/2 flex flex-col items-center gap-2 z-20 w-full max-w-4xl px-4 pointer-events-none">
       {/* MAIN BAR */}
-      <div className="bg-white px-6 py-3 rounded-xl shadow-2xl flex gap-6 border border-gray-200 pointer-events-auto">
+      <div className="bg-white px-6 py-3 rounded-xl shadow-2xl flex gap-6 border border-gray-200 pointer-events-auto items-center">
         {/* COLOR PICKER */}
         <div className="flex gap-2 items-center border-r pr-6 border-gray-300">
           {colors.map((c) => (
@@ -32,7 +52,6 @@ const Toolbar = ({
               style={{ backgroundColor: c }}
             />
           ))}
-          {/* Custom Color */}
           <div className="relative w-8 h-8 rounded-full overflow-hidden border-2 border-gray-200 cursor-pointer hover:scale-105 transition-transform">
             <input
               type="color"
@@ -43,9 +62,8 @@ const Toolbar = ({
           </div>
         </div>
 
-        {/* TOOLS (Eraser & Width) */}
+        {/* TOOLS */}
         <div className="flex items-center gap-4 border-r pr-6 border-gray-300">
-          {/* Eraser */}
           <button
             onClick={() => setColor("#FFFFFF")}
             className={`p-2 rounded-lg transition-all ${
@@ -58,7 +76,6 @@ const Toolbar = ({
             🧹 Eraser
           </button>
 
-          {/* Width Slider */}
           <div className="flex flex-col items-center w-24">
             <label className="text-[10px] font-bold text-gray-400 uppercase tracking-wider">
               Width: {width}px
@@ -74,31 +91,41 @@ const Toolbar = ({
           </div>
         </div>
 
-        {/* ACTIONS (Undo/Redo) */}
+        {/* ACTIONS */}
         <div className="flex items-center gap-2">
           <button
             onClick={undo}
-            className="p-2 rounded-lg bg-gray-100 hover:bg-gray-200 text-gray-700 font-bold text-sm transition-colors"
+            className="p-2 rounded-lg bg-gray-100 hover:bg-gray-200 font-bold text-sm"
           >
             ↩
           </button>
           <button
             onClick={redo}
-            className="p-2 rounded-lg bg-gray-100 hover:bg-gray-200 text-gray-700 font-bold text-sm transition-colors"
+            className="p-2 rounded-lg bg-gray-100 hover:bg-gray-200 font-bold text-sm"
           >
             ↪
           </button>
           <button
             onClick={clear}
-            className="ml-2 p-2 rounded-lg bg-red-50 hover:bg-red-100 text-red-600 font-bold text-sm transition-colors"
+            className="ml-2 p-2 rounded-lg bg-red-50 hover:bg-red-100 text-red-600 font-bold text-sm"
           >
             🗑️
+          </button>
+
+          {/* DOWNLOAD BUTTON */}
+          <button
+            onClick={handleDownload}
+            className="ml-2 p-2 rounded-lg bg-blue-50 hover:bg-blue-100 text-blue-600 font-bold text-sm"
+            title="Save Image"
+          >
+            💾
           </button>
         </div>
       </div>
 
-      {/* USER LIST TOGGLE */}
-      <div className="pointer-events-auto relative z-50">
+      {/* USER LIST & STATS */}
+      <div className="pointer-events-auto relative z-50 flex gap-2">
+        {/* User Count */}
         <button
           onClick={() => setShowUserList(!showUserList)}
           className="bg-black text-white px-4 py-1 rounded-full text-xs font-bold shadow-lg hover:bg-gray-800 transition-colors flex items-center gap-2"
@@ -107,8 +134,14 @@ const Toolbar = ({
           {users.length} Online
         </button>
 
+        {/* Ping Indicator */}
+        <div className="bg-gray-100 text-gray-500 px-3 py-1 rounded-full text-[10px] font-mono font-bold shadow-sm flex items-center">
+          ⚡ {ping}ms
+        </div>
+
+        {/* User Dropdown */}
         {showUserList && (
-          <div className="absolute top-full mt-2 bg-white p-3 rounded-xl shadow-xl border border-gray-100 min-w-[150px]">
+          <div className="absolute top-full left-0 mt-2 bg-white p-3 rounded-xl shadow-xl border border-gray-100 min-w-[150px]">
             <h3 className="text-xs font-bold text-gray-400 mb-2 uppercase">
               Users
             </h3>

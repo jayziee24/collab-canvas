@@ -25,6 +25,7 @@ const Whiteboard = ({ socket, selectedColor, selectedWidth }) => {
     const setCanvasSize = () => {
       const parent = canvas.parentElement;
       if (parent) {
+        // High-DPI support
         canvas.width = parent.offsetWidth * window.devicePixelRatio;
         canvas.height = parent.offsetHeight * window.devicePixelRatio;
         canvas.style.width = `${parent.offsetWidth}px`;
@@ -42,7 +43,6 @@ const Whiteboard = ({ socket, selectedColor, selectedWidth }) => {
       const ctx = canvas.getContext("2d");
 
       ctx.beginPath();
-
       ctx.strokeStyle = data.color || "black";
       ctx.lineWidth = data.width || 5;
       ctx.lineCap = "round";
@@ -111,35 +111,47 @@ const Whiteboard = ({ socket, selectedColor, selectedWidth }) => {
     };
   }, [socket]);
 
-  const getMousePos = (e) => {
+  // --- TOUCH & MOUSE LOGIC ---
+  const getPos = (e) => {
     const canvas = canvasRef.current;
     const rect = canvas.getBoundingClientRect();
+
+
+    const clientX = e.touches ? e.touches[0].clientX : e.clientX;
+    const clientY = e.touches ? e.touches[0].clientY : e.clientY;
+
     return {
-      x: e.clientX - rect.left,
-      y: e.clientY - rect.top,
+      x: clientX - rect.left,
+      y: clientY - rect.top,
     };
   };
 
   const startDrawing = (e) => {
+
+    if (e.cancelable) e.preventDefault();
+
     isDrawing.current = true;
-    const { x, y } = getMousePos(e);
+    const { x, y } = getPos(e);
     lastPos.current = { x, y };
     strokeBuffer.current = [{ x, y }];
-
     currentStrokeId.current =
       Date.now().toString() + Math.random().toString(36).substring(2, 9);
   };
 
-  const handleMouseMove = (e) => {
-    const { x, y } = getMousePos(e);
+  const handleMove = (e) => {
+    if (e.cancelable) e.preventDefault();
+
+    const { x, y } = getPos(e);
+
+
     socket.emit("cursor_move", { x, y });
 
     if (isDrawing.current) {
-      draw(e, x, y);
+      draw(x, y);
     }
   };
 
-  const draw = (e, x, y) => {
+  const draw = (x, y) => {
     const canvas = canvasRef.current;
     const ctx = canvas.getContext("2d");
 
@@ -147,7 +159,6 @@ const Whiteboard = ({ socket, selectedColor, selectedWidth }) => {
     ctx.moveTo(lastPos.current.x, lastPos.current.y);
     ctx.lineTo(x, y);
 
-    // Apply current styles
     ctx.strokeStyle = selectedColor;
     ctx.lineWidth = selectedWidth;
     ctx.lineCap = "round";
@@ -168,10 +179,16 @@ const Whiteboard = ({ socket, selectedColor, selectedWidth }) => {
     <div className="relative w-full h-full bg-white">
       <canvas
         ref={canvasRef}
+        id="whiteboard-canvas" 
+        // Mouse Events
         onMouseDown={startDrawing}
-        onMouseMove={handleMouseMove}
+        onMouseMove={handleMove}
         onMouseUp={stopDrawing}
         onMouseLeave={stopDrawing}
+        // Touch Events
+        onTouchStart={startDrawing}
+        onTouchMove={handleMove}
+        onTouchEnd={stopDrawing}
         className="cursor-crosshair touch-none block"
       />
       {Object.entries(cursors).map(([id, pos]) => (
