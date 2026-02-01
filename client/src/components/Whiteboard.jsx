@@ -11,6 +11,8 @@ const Whiteboard = ({ socket, selectedColor, selectedWidth }) => {
 
   const [cursors, setCursors] = useState({});
 
+  const currentStrokeId = useRef(null);
+
   useEffect(() => {
     colorRef.current = selectedColor;
     widthRef.current = selectedWidth;
@@ -35,7 +37,6 @@ const Whiteboard = ({ socket, selectedColor, selectedWidth }) => {
     setCanvasSize();
     window.addEventListener("resize", setCanvasSize);
 
-
     socket.on("draw_line", (data) => {
       if (!data.points || data.points.length === 0) return;
       const ctx = canvas.getContext("2d");
@@ -55,6 +56,26 @@ const Whiteboard = ({ socket, selectedColor, selectedWidth }) => {
       ctx.stroke();
     });
 
+    socket.on("board_state", (history) => {
+      const ctx = canvas.getContext("2d");
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+      history.forEach((data) => {
+        if (!data.points || data.points.length === 0) return;
+        ctx.beginPath();
+        ctx.strokeStyle = data.color || "black";
+        ctx.lineWidth = data.width || 5;
+        ctx.lineCap = "round";
+        ctx.lineJoin = "round";
+
+        let p1 = data.points[0];
+        ctx.moveTo(p1.x, p1.y);
+        data.points.forEach((point) => {
+          ctx.lineTo(point.x, point.y);
+        });
+        ctx.stroke();
+      });
+    });
+
     socket.on("cursor_update", ({ id, x, y }) => {
       setCursors((prev) => ({
         ...prev,
@@ -62,14 +83,13 @@ const Whiteboard = ({ socket, selectedColor, selectedWidth }) => {
       }));
     });
 
-    // --- EMITTER INTERVAL ---
     const interval = setInterval(() => {
       if (strokeBuffer.current.length > 0) {
         socket.emit("draw_line", {
           points: [...strokeBuffer.current],
-          // FIX: Use .current to get the LATEST color/width
           color: colorRef.current,
           width: widthRef.current,
+          strokeId: currentStrokeId.current,
         });
 
         if (isDrawing.current) {
@@ -87,6 +107,7 @@ const Whiteboard = ({ socket, selectedColor, selectedWidth }) => {
       clearInterval(interval);
       socket.off("cursor_update");
       socket.off("draw_line");
+      socket.off("board_state");
     };
   }, [socket]);
 
@@ -104,6 +125,9 @@ const Whiteboard = ({ socket, selectedColor, selectedWidth }) => {
     const { x, y } = getMousePos(e);
     lastPos.current = { x, y };
     strokeBuffer.current = [{ x, y }];
+
+    currentStrokeId.current =
+      Date.now().toString() + Math.random().toString(36).substring(2, 9);
   };
 
   const handleMouseMove = (e) => {
