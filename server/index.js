@@ -73,7 +73,6 @@ io.on("connection", (socket) => {
   });
 
   socket.on("cursor_move", ({ x, y }) => {
-    // Added safety check (?.) in case server restarted and memory is wiped
     const user = users[socket.id];
     if (user) {
       socket.broadcast.emit("cursor_update", {
@@ -98,7 +97,7 @@ io.on("connection", (socket) => {
   });
 });
 
-const PORT = 3001;
+const PORT = process.env.PORT || 3001;
 server.listen(PORT, () => {
   console.log(`Server is running on port ${PORT}`);
 });
