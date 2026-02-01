@@ -76,10 +76,10 @@ const Whiteboard = ({ socket, selectedColor, selectedWidth }) => {
       });
     });
 
-    socket.on("cursor_update", ({ id, x, y }) => {
+    socket.on("cursor_update", ({ id, x, y, name, color }) => {
       setCursors((prev) => ({
         ...prev,
-        [id]: { x, y },
+        [id]: { x, y, name, color },
       }));
     });
 
@@ -165,7 +165,7 @@ const Whiteboard = ({ socket, selectedColor, selectedWidth }) => {
   };
 
   return (
-    <div className="relative w-full h-full">
+    <div className="relative w-full h-full bg-white">
       <canvas
         ref={canvasRef}
         onMouseDown={startDrawing}
@@ -179,14 +179,14 @@ const Whiteboard = ({ socket, selectedColor, selectedWidth }) => {
           key={id}
           className="absolute w-4 h-4 rounded-full border-2 border-white shadow-sm pointer-events-none transition-transform duration-100 ease-linear"
           style={{
-            backgroundColor: "red",
+            backgroundColor: pos.color || "red",
             transform: `translate(${pos.x}px, ${pos.y}px)`,
             top: 0,
             left: 0,
           }}
         >
           <span className="absolute -top-6 left-0 text-[10px] bg-black text-white px-1.5 py-0.5 rounded whitespace-nowrap">
-            User {id.slice(0, 4)}
+            {pos.name || id.slice(0, 4)}
           </span>
         </div>
       ))}
