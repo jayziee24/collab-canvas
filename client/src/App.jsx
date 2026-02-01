@@ -1,10 +1,9 @@
-import { useState, useEffect } from "react";
+import { useEffect, useState } from "react";
 import io from "socket.io-client";
 import Toolbar from "./components/Toolbar";
 import Whiteboard from "./components/Whiteboard";
 
-
-const socket = io.connect("http://localhost:3001");
+const socket = io.connect("https://collab-canvas-server-td95.onrender.com");
 
 function App() {
   const [color, setColor] = useState("#000000");
@@ -14,11 +13,9 @@ function App() {
   const [myId, setMyId] = useState("");
 
   useEffect(() => {
-
     socket.on("connect", () => {
       setMyId(socket.id);
     });
-
 
     socket.on("users_update", (data) => {
       setUsers(data);
@@ -45,7 +42,7 @@ function App() {
         redo={handleRedo}
         clear={handleClear}
         users={users}
-        currentUser={myId} 
+        currentUser={myId}
       />
       <div className="flex-1 relative">
         <Whiteboard
