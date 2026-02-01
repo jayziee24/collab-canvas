@@ -10,14 +10,15 @@ const Whiteboard = ({ socket, selectedColor, selectedWidth }) => {
   const widthRef = useRef(selectedWidth);
 
   const [cursors, setCursors] = useState({});
-
   const currentStrokeId = useRef(null);
 
+  // Keep refs updated for event listeners
   useEffect(() => {
     colorRef.current = selectedColor;
     widthRef.current = selectedWidth;
   }, [selectedColor, selectedWidth]);
 
+  // --- 1. SOCKET & CANVAS SETUP ---
   useEffect(() => {
     const canvas = canvasRef.current;
     const ctx = canvas.getContext("2d");
@@ -25,7 +26,6 @@ const Whiteboard = ({ socket, selectedColor, selectedWidth }) => {
     const setCanvasSize = () => {
       const parent = canvas.parentElement;
       if (parent) {
-        // High-DPI support
         canvas.width = parent.offsetWidth * window.devicePixelRatio;
         canvas.height = parent.offsetHeight * window.devicePixelRatio;
         canvas.style.width = `${parent.offsetWidth}px`;
@@ -38,21 +38,18 @@ const Whiteboard = ({ socket, selectedColor, selectedWidth }) => {
     setCanvasSize();
     window.addEventListener("resize", setCanvasSize);
 
+    // Socket Listeners
     socket.on("draw_line", (data) => {
       if (!data.points || data.points.length === 0) return;
       const ctx = canvas.getContext("2d");
-
       ctx.beginPath();
       ctx.strokeStyle = data.color || "black";
       ctx.lineWidth = data.width || 5;
       ctx.lineCap = "round";
       ctx.lineJoin = "round";
-
       let p1 = data.points[0];
       ctx.moveTo(p1.x, p1.y);
-      data.points.forEach((point) => {
-        ctx.lineTo(point.x, point.y);
-      });
+      data.points.forEach((point) => ctx.lineTo(point.x, point.y));
       ctx.stroke();
     });
 
@@ -66,23 +63,18 @@ const Whiteboard = ({ socket, selectedColor, selectedWidth }) => {
         ctx.lineWidth = data.width || 5;
         ctx.lineCap = "round";
         ctx.lineJoin = "round";
-
         let p1 = data.points[0];
         ctx.moveTo(p1.x, p1.y);
-        data.points.forEach((point) => {
-          ctx.lineTo(point.x, point.y);
-        });
+        data.points.forEach((point) => ctx.lineTo(point.x, point.y));
         ctx.stroke();
       });
     });
 
     socket.on("cursor_update", ({ id, x, y, name, color }) => {
-      setCursors((prev) => ({
-        ...prev,
-        [id]: { x, y, name, color },
-      }));
+      setCursors((prev) => ({ ...prev, [id]: { x, y, name, color } }));
     });
 
+    // Emitting Loop
     const interval = setInterval(() => {
       if (strokeBuffer.current.length > 0) {
         socket.emit("draw_line", {
@@ -91,7 +83,6 @@ const Whiteboard = ({ socket, selectedColor, selectedWidth }) => {
           width: widthRef.current,
           strokeId: currentStrokeId.current,
         });
-
         if (isDrawing.current) {
           const lastPoint =
             strokeBuffer.current[strokeBuffer.current.length - 1];
@@ -111,84 +102,89 @@ const Whiteboard = ({ socket, selectedColor, selectedWidth }) => {
     };
   }, [socket]);
 
-  // --- TOUCH & MOUSE LOGIC ---
+  // --- 2. DRAWING LOGIC ---
   const getPos = (e) => {
     const canvas = canvasRef.current;
     const rect = canvas.getBoundingClientRect();
-
-
     const clientX = e.touches ? e.touches[0].clientX : e.clientX;
     const clientY = e.touches ? e.touches[0].clientY : e.clientY;
-
     return {
       x: clientX - rect.left,
       y: clientY - rect.top,
     };
   };
 
-  const startDrawing = (e) => {
-
-    if (e.cancelable) e.preventDefault();
-
-    isDrawing.current = true;
-    const { x, y } = getPos(e);
-    lastPos.current = { x, y };
-    strokeBuffer.current = [{ x, y }];
-    currentStrokeId.current =
-      Date.now().toString() + Math.random().toString(36).substring(2, 9);
-  };
-
-  const handleMove = (e) => {
-    if (e.cancelable) e.preventDefault();
-
-    const { x, y } = getPos(e);
-
-
-    socket.emit("cursor_move", { x, y });
-
-    if (isDrawing.current) {
-      draw(x, y);
-    }
-  };
-
   const draw = (x, y) => {
     const canvas = canvasRef.current;
     const ctx = canvas.getContext("2d");
-
     ctx.beginPath();
     ctx.moveTo(lastPos.current.x, lastPos.current.y);
     ctx.lineTo(x, y);
-
-    ctx.strokeStyle = selectedColor;
-    ctx.lineWidth = selectedWidth;
+    ctx.strokeStyle = colorRef.current; // Use Ref for latest color
+    ctx.lineWidth = widthRef.current; // Use Ref for latest width
     ctx.lineCap = "round";
     ctx.lineJoin = "round";
-
     ctx.stroke();
 
     strokeBuffer.current.push({ x, y });
     lastPos.current = { x, y };
   };
 
-  const stopDrawing = () => {
-    isDrawing.current = false;
-    strokeBuffer.current = [];
-  };
+  // --- 3. MANUAL EVENT LISTENERS (The Fix) ---
+  useEffect(() => {
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+
+    const handleStart = (e) => {
+      e.preventDefault(); // Stop scrolling immediately
+      isDrawing.current = true;
+      const { x, y } = getPos(e);
+      lastPos.current = { x, y };
+      strokeBuffer.current = [{ x, y }];
+      currentStrokeId.current =
+        Date.now().toString() + Math.random().toString(36).substring(2, 9);
+    };
+
+    const handleMove = (e) => {
+      e.preventDefault(); // Stop scrolling immediately
+      const { x, y } = getPos(e);
+      socket.emit("cursor_move", { x, y });
+      if (isDrawing.current) draw(x, y);
+    };
+
+    const handleEnd = (e) => {
+      e.preventDefault();
+      isDrawing.current = false;
+      strokeBuffer.current = [];
+    };
+
+    // Attach with { passive: false } to allow preventing default
+    canvas.addEventListener("touchstart", handleStart, { passive: false });
+    canvas.addEventListener("touchmove", handleMove, { passive: false });
+    canvas.addEventListener("touchend", handleEnd, { passive: false });
+
+    // Mouse events don't need passive: false, but we can attach them here for consistency
+    canvas.addEventListener("mousedown", handleStart);
+    canvas.addEventListener("mousemove", handleMove);
+    canvas.addEventListener("mouseup", handleEnd);
+    canvas.addEventListener("mouseleave", handleEnd);
+
+    return () => {
+      canvas.removeEventListener("touchstart", handleStart);
+      canvas.removeEventListener("touchmove", handleMove);
+      canvas.removeEventListener("touchend", handleEnd);
+      canvas.removeEventListener("mousedown", handleStart);
+      canvas.removeEventListener("mousemove", handleMove);
+      canvas.removeEventListener("mouseup", handleEnd);
+      canvas.removeEventListener("mouseleave", handleEnd);
+    };
+  }, []); // Run once on mount
 
   return (
     <div className="relative w-full h-full bg-white">
       <canvas
         ref={canvasRef}
-        id="whiteboard-canvas" 
-        // Mouse Events
-        onMouseDown={startDrawing}
-        onMouseMove={handleMove}
-        onMouseUp={stopDrawing}
-        onMouseLeave={stopDrawing}
-        // Touch Events
-        onTouchStart={startDrawing}
-        onTouchMove={handleMove}
-        onTouchEnd={stopDrawing}
+        id="whiteboard-canvas"
         className="cursor-crosshair touch-none block"
       />
       {Object.entries(cursors).map(([id, pos]) => (
