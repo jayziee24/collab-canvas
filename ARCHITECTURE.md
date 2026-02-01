@@ -1,41 +1,9 @@
 # System Architecture
-<img width="3631" height="840" alt="image" src="https://github.com/user-attachments/assets/59f2e928-1bb8-432a-bae3-5ab461dc0ae9" />
 
 ## Overview
 This application utilizes a centralized client-server architecture powered by WebSockets to ensure consistency across multiple connected clients. The core design philosophy prioritizes latency reduction through event batching and state consistency through server-side history management.
 
-## Data Flow Diagram
-The following sequence diagram illustrates the lifecycle of a drawing event, from the user's input to the propagation across the network.
-
-```mermaid
-sequenceDiagram
-    participant User as User Interaction
-    participant Client as Client (Event Buffer)
-    participant Server as Node.js Server
-    participant Peers as Connected Peers
-
-    User->>Client: Mouse/Touch Move (High Frequency)
-    Note right of Client: Events are buffered in local array<br/>(Not emitted immediately)
-
-    loop Throttling Interval (50ms)
-        alt Buffer has data
-            Client->>Server: Emit 'draw_line' Payload
-            Note right of Client: Payload: { points[], color, width, strokeId }
-            Server->>Server: Push to drawHistory
-            Server->>Peers: Broadcast 'draw_line'
-        end
-    end
-
-    Peers->>Peers: Context.lineTo(points)
-    Note right of Peers: Path Interpolation & Rendering
-
-
-```
-
-```mermaid
-
-
-```
+<img width="3631" height="840" alt="image" src="https://github.com/user-attachments/assets/59f2e928-1bb8-432a-bae3-5ab461dc0ae9" />
 
 ## Core Logic & Implementation Details
 
@@ -69,3 +37,61 @@ To optimize rendering performance and prevent React reconciliation cycles from c
 
 * **Direct DOM Manipulation:** The canvas rendering context (`ctx`) is accessed via `useRef` rather than React state.
 * **Input Separation:** High-frequency cursor tracking is decoupled from the drawing logic. Cursor updates are broadcast independently to ensure the "Ghost Cursors" remain fluid even if the drawing buffer is processing data.
+
+
+
+# 🔄 End-to-End Data Flow
+## Data Flow Diagram
+The following sequence diagram illustrates the lifecycle of a drawing event, from the user's input to the propagation across the network.
+
+```mermaid
+sequenceDiagram
+    participant User as User Interaction
+    participant Client as Client (Event Buffer)
+    participant Server as Node.js Server
+    participant Peers as Connected Peers
+
+    User->>Client: Mouse/Touch Move (High Frequency)
+    Note right of Client: Events are buffered in local array<br/>(Not emitted immediately)
+
+    loop Throttling Interval (50ms)
+        alt Buffer has data
+            Client->>Server: Emit 'draw_line' Payload
+            Note right of Client: Payload: { points[], color, width, strokeId }
+            Server->>Server: Push to drawHistory
+            Server->>Peers: Broadcast 'draw_line'
+        end
+    end
+
+    Peers->>Peers: Context.lineTo(points)
+    Note right of Peers: Path Interpolation & Rendering
+
+
+```
+
+The system follows a strict linear pipeline to transform high-frequency user inputs into synchronized remote updates.
+
+## 1. Input Acquisition (The Edge)
+
+* **Trigger:** The user interacts via Mouse (`mousedown`) or Touch (`touchstart`).
+* **Intervention:** The client immediately executes `preventDefault()` with `{ passive: false }`. This captures 100% of the input intent and blocks native browser scrolling, ensuring a native-app feel on mobile devices.
+* **Buffering:** Raw coordinates are not emitted immediately. Instead, they are pushed into a local `strokeBuffer` array.
+
+## 2. Client-Side Optimization (The Filter)
+
+* **Throttling:** A dedicated interval runs every 50ms.
+* **Decision Gate:** The system checks: Is there data in the buffer?
+   * **No:** The cycle idles.
+   * **Yes:** The buffer is flushed. All points are packaged into a single JSON payload containing the `color`, `width`, and the atomic `strokeId`.
+
+## 3. Transmission & Synchronization (The Core)
+
+* **Transport:** The payload is emitted via WebSocket (`Socket.io`) to the Node.js server.
+* **Persistence:** The server appends the payload to the global `drawHistory` array (The Source of Truth).
+* **Broadcast:** The server immediately rebroadcasts the packet to all other connected clients in the room.
+
+## 4. Remote Rendering (The Output)
+
+* **Reception:** Connected peers receive the batched data.
+* **Interpolation:** The client reads the array of points and uses `ctx.lineTo()` to draw smooth connecting lines between them.
+* **State Isolation:** The remote stroke is drawn using the sender's color and width metadata, ensuring it does not pollute the receiver's local tool settings.
